@@ -58,6 +58,7 @@ class ScanPresenter constructor(
     private var busy: Boolean = false
     private var mCameraLensFacing: String? = null
     private var flashEnabled: Boolean = false
+    private var resultListener: ((String) -> Unit)? = null
 
     private var mLastClickTime = 0L
     private var shutted: Boolean = true
@@ -66,6 +67,15 @@ class ScanPresenter constructor(
         mSurfaceHolder.addCallback(this)
         executor = Executors.newSingleThreadExecutor()
         proxySchedule = Schedulers.from(executor)
+    }
+
+    fun setOnResultListener(listener: (String) -> Unit) {
+        resultListener = listener
+    }
+
+    // after the code that finishes the crop & writes the file (where currently the CropActivity would finish):
+    fun notifySaved(path: String) {
+        resultListener?.invoke(path)
     }
 
     private fun isOpenRecently(): Boolean {
@@ -244,6 +254,7 @@ class ScanPresenter constructor(
             copied
         }
     }
+
     fun detectEdge(pic: Mat) {
         Log.i("height", pic.size().height.toString())
         Log.i("width", pic.size().width.toString())

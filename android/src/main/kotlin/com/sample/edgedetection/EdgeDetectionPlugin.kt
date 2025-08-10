@@ -23,6 +23,10 @@ class EdgeDetectionPlugin : FlutterPlugin, ActivityAware {
             binding.binaryMessenger, "edge_detection"
         )
         channel.setMethodCallHandler(handler)
+        binding.platformViewRegistry.registerViewFactory(
+          "edge_detection/camera_view",
+          CameraPlatformViewFactory(binding.binaryMessenger)
+        )
     }
 
     override fun onDetachedFromEngine(binding: FlutterPluginBinding) {}

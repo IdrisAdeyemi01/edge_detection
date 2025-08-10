@@ -31,6 +31,16 @@ class CropPresenter(
     private var croppedBitmap: Bitmap? = null
     private var rotateBitmap: Bitmap? = null
     private var rotateBitmapDegree: Int = -90
+    private var resultListener: ((String) -> Unit)? = null
+
+    fun setOnResultListener(listener: (String) -> Unit) {
+        resultListener = listener
+    }
+
+    // after the code that finishes the crop & writes the file (where currently the CropActivity would finish):
+    fun notifySaved(path: String) {
+        resultListener?.invoke(path)
+    }
 
     fun onViewsReady(paperWidth: Int, paperHeight: Int) {
         iCropView.getPaperRect().onCorners2Crop(corners, picture?.size(), paperWidth, paperHeight)
@@ -139,7 +149,7 @@ class CropPresenter(
         croppedBitmap = croppedBitmap?.rotateInt(rotateBitmapDegree)
     }
 
-    fun save() {
+    fun save() {s
         val file = File(initialBundle.getString(EdgeDetectionHandler.SAVE_TO) as String)
 
         val rotatePic = rotateBitmap
@@ -148,6 +158,7 @@ class CropPresenter(
             rotatePic.compress(Bitmap.CompressFormat.JPEG, 100, outStream)
             outStream.flush()
             outStream.close()
+            notifySaved(file.absolutePath)
             rotatePic.recycle()
             Log.i(TAG, "RotateBitmap Saved")
         } else {
@@ -159,6 +170,7 @@ class CropPresenter(
                 pic.compress(Bitmap.CompressFormat.JPEG, 100, outStream)
                 outStream.flush()
                 outStream.close()
+                notifySaved(file.absolutePath)
                 pic.recycle()
                 Log.i(TAG, "EnhancedPicture Saved")
             } else {
@@ -168,6 +180,7 @@ class CropPresenter(
                     cropPic.compress(Bitmap.CompressFormat.JPEG, 100, outStream)
                     outStream.flush()
                     outStream.close()
+                    notifySaved(file.absolutePath)
                     cropPic.recycle()
                     Log.i(TAG, "CroppedBitmap Saved")
                 }
