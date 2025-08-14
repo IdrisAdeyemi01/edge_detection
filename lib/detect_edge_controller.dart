@@ -1,22 +1,46 @@
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 
 class DetectEdgeController {
-  DetectEdgeController._(this._id) {
+  DetectEdgeController();
+
+  MethodChannel? _channel;
+  int? _id;
+
+  /// Bind the controller to the native view's ID
+  void bindToView(int id) {
+    _id = id;
     _channel = MethodChannel('edge_detection/camera_view_$_id');
   }
 
-  final int _id;
-  late MethodChannel _channel;
+  Future<void> start() async {
+    if (_channel != null) {
+      await _channel!.invokeMethod('start');
+    }
+  }
 
-  Future<void> start() => _channel.invokeMethod('start');
-  Future<void> stop() => _channel.invokeMethod('stop');
-  Future<void> toggleFlash() => _channel.invokeMethod('toggleFlash');
+  Future<void> stop() async {
+    if (_channel != null) {
+      await _channel!.invokeMethod('stop');
+    }
+  }
 
-  /// returns true/false or you can change native to return path
-  Future<String?> capture() async {
-    final res = await _channel.invokeMethod('capture');
-    // if native is sending path via onImageCaptured, use an event handler instead.
-    return res as String?;
+  Future<void> toggleFlash() async {
+    if (_channel != null) {
+      await _channel!.invokeMethod('toggleFlash');
+    }
+  }
+
+  /// Capture an image and return its path
+  Future<bool> capture() async {
+    if (_channel != null) {
+      final res = await _channel!.invokeMethod('capture');
+      return res;
+    }
+    return false;
+  }
+
+  /// Listen for native method calls (events)
+  void setMethodCallHandler(Future<dynamic> Function(MethodCall call)? handler) {
+    _channel?.setMethodCallHandler(handler);
   }
 }

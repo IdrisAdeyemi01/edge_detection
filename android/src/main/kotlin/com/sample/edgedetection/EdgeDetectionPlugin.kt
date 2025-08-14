@@ -5,6 +5,8 @@ import android.content.Intent
 import android.os.Bundle
 import com.sample.edgedetection.scan.ScanActivity
 import io.flutter.embedding.engine.plugins.FlutterPlugin
+import com.sample.edgedetection.view.CameraPlatformViewFactory
+import com.sample.edgedetection.view.CropPlatformViewFactory
 import io.flutter.embedding.engine.plugins.FlutterPlugin.FlutterPluginBinding
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -13,31 +15,57 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
+import io.flutter.plugin.common.BinaryMessenger
+import io.flutter.plugin.platform.PlatformViewRegistry
+
 
 class EdgeDetectionPlugin : FlutterPlugin, ActivityAware {
     private var handler: EdgeDetectionHandler? = null
+    private lateinit var messenger: BinaryMessenger
+    private var flutterBinding: FlutterPluginBinding? = null
+    private var activity: Activity? = null
+//    private lateinit var channel: MethodChannel
 
     override fun onAttachedToEngine(binding: FlutterPluginBinding) {
         handler = EdgeDetectionHandler()
-        val channel = MethodChannel(
-            binding.binaryMessenger, "edge_detection"
-        )
+        flutterBinding = binding
+        messenger = binding.binaryMessenger
+
+        val channel = MethodChannel(messenger, "edge_detection")
         channel.setMethodCallHandler(handler)
-        binding.platformViewRegistry.registerViewFactory(
-          "edge_detection/camera_view",
-          CameraPlatformViewFactory(binding.binaryMessenger)
-        )
+
+        binding
+            .platformViewRegistry
+            .registerViewFactory(
+                "edge_detection/crop_view",
+                CropPlatformViewFactory(binding.binaryMessenger)
+            )
+
     }
 
-    override fun onDetachedFromEngine(binding: FlutterPluginBinding) {}
+    override fun onDetachedFromEngine(binding: FlutterPluginBinding) {
+//        channel.setMethodCallHandler(null)
+    }
 
     override fun onAttachedToActivity(activityPluginBinding: ActivityPluginBinding) {
+        this.activity = activityPluginBinding.activity
         handler?.setActivityPluginBinding(activityPluginBinding)
+
+        flutterBinding?.platformViewRegistry?.registerViewFactory(
+            "edge_detection/camera_view",
+            CameraPlatformViewFactory(messenger, activity!!)
+        )
     }
 
-    override fun onDetachedFromActivityForConfigChanges() {}
-    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {}
-    override fun onDetachedFromActivity() {}
+    override fun onDetachedFromActivityForConfigChanges() {
+        activity = null
+    }
+    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
+        activity = binding.activity
+    }
+    override fun onDetachedFromActivity() {
+        activity = null
+    }
 }
 
 class EdgeDetectionHandler : MethodCallHandler, PluginRegistry.ActivityResultListener {
@@ -54,6 +82,8 @@ class EdgeDetectionHandler : MethodCallHandler, PluginRegistry.ActivityResultLis
         const val CROP_TITLE = "crop_title"
         const val CROP_BLACK_WHITE_TITLE = "crop_black_white_title"
         const val CROP_RESET_TITLE = "crop_reset_title"
+        const val IMAGE_PATH = "image_path"
+        const val SAVE_PATH = "save_path"
     }
 
     fun setActivityPluginBinding(activityPluginBinding: ActivityPluginBinding) {

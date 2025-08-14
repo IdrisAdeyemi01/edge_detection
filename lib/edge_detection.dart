@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 
 class EdgeDetection {
-  static const MethodChannel _channel = const MethodChannel('edge_detection');
+  static const MethodChannel _channel = const MethodChannel('edge_detection/camera_view');
 
   /// Call this method to scan the object edge in live camera.
   static Future<bool> detectEdge(

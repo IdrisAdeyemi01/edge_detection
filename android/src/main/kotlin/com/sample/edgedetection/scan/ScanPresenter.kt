@@ -50,7 +50,7 @@ class ScanPresenter constructor(
     private val initialBundle: Bundle
 ) :
     SurfaceHolder.Callback, Camera.PictureCallback, Camera.PreviewCallback {
-    private val TAG: String = "ScanPresenter"
+    private val TAG: String = "ScanPresenter ------------>"
     private var mCamera: Camera? = null
     private val mSurfaceHolder: SurfaceHolder = iView.getSurfaceView().holder
     private val executor: ExecutorService
@@ -111,6 +111,7 @@ class ScanPresenter constructor(
             Log.i(TAG, "focus result: $b")
             mCamera?.enableShutterSound(false)
             mCamera?.takePicture(null, null, this)
+            Log.i(TAG, "Picture taken")
         }
 
     }

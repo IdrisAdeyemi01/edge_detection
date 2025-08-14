@@ -33,7 +33,8 @@ class CropActivity : BaseActivity(), ICropView.Proxy {
         }
     }
 
-    override fun provideContentViewId(): Int = R.layout.activity_crop
+//    override fun provideContentViewId(): Int = R.layout.activity_crop
+    override fun provideContentViewId(): Int = R.layout.view_crop
 
 
     override fun initPresenter() {
@@ -59,10 +60,10 @@ class CropActivity : BaseActivity(), ICropView.Proxy {
 
         menu.findItem(R.id.rotation_image).isVisible = showMenuItems
 
-        menu.findItem(R.id.gray).title =
-            initialBundle.getString(EdgeDetectionHandler.CROP_BLACK_WHITE_TITLE) as String
-        menu.findItem(R.id.reset).title =
-            initialBundle.getString(EdgeDetectionHandler.CROP_RESET_TITLE) as String
+//        menu.findItem(R.id.gray).title =
+//            initialBundle.getString(EdgeDetectionHandler.CROP_BLACK_WHITE_TITLE) as String
+//        menu.findItem(R.id.reset).title =
+//            initialBundle.getString(EdgeDetectionHandler.CROP_RESET_TITLE) as String
 
         if (showMenuItems) {
             menu.findItem(R.id.action_label).isVisible = true

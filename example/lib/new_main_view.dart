@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:edge_detection/detect_edge_camera_view.dart';
+import 'package:edge_detection/edge_detection_view.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
@@ -23,6 +23,10 @@ class _MyAppState extends State<MyApp> {
     super.initState();
   }
 
+  DetectEdgeController controller = DetectEdgeController();
+
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +40,7 @@ class _MyAppState extends State<MyApp> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             DetectEdgeCameraViewer(
+              controller: controller,
               canUseGallery: false,
               onImageCaptured: (path) {
                 print('image saved to $path');

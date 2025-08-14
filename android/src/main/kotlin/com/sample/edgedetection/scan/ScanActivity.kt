@@ -30,7 +30,7 @@ class ScanActivity : BaseActivity(), IScanView.Proxy {
 
     private lateinit var mPresenter: ScanPresenter
 
-    override fun provideContentViewId(): Int = R.layout.activity_scan
+    override fun provideContentViewId(): Int = R.layout.view_scan
 
     override fun initPresenter() {
         val initialBundle = intent.getBundleExtra(EdgeDetectionHandler.INITIAL_BUNDLE) as Bundle
