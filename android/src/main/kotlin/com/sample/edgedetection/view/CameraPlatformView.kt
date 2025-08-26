@@ -7,6 +7,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.SurfaceView
 import io.flutter.plugin.common.BinaryMessenger
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.MethodCall
@@ -16,10 +17,12 @@ import com.sample.edgedetection.scan.IScanView
 import com.sample.edgedetection.R
 import org.opencv.android.BaseLoaderCallback
 import org.opencv.android.LoaderCallbackInterface
+import com.sample.edgedetection.EdgeDetectionHandler
 import org.opencv.android.OpenCVLoader
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+
 
 class CameraPlatformView(
     private val activity: Activity,
@@ -28,7 +31,7 @@ class CameraPlatformView(
     id: Int,
     params: Map<String, Any>?
 
-) : PlatformView, MethodChannel.MethodCallHandler {
+) : PlatformView, MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
 
     private val TAG = "CameraPlatformView"
     private val rootView: View
@@ -85,22 +88,31 @@ class CameraPlatformView(
             }
 
             // build initial bundle from params if needed
-            val bundle = Bundle()
-            params?.let {
-                bundle.putBoolean("can_use_gallery", it["can_use_gallery"] as? Boolean ?: true)
-                bundle.putString("scan_title", it["scan_title"] as? String ?: "")
-                bundle.putString("crop_title", it["crop_title"] as? String ?: "")
-                // other keys...
-            }
+            val bundle = Bundle().apply{
+                params?.let {
+                    putBoolean("can_use_gallery", it["can_use_gallery"] as? Boolean ?: true)
+                    putString("scan_title", it["scan_title"] as? String ?: "")
+                    putString("crop_title", it["crop_title"] as? String ?: "")
+                    (it["save_to"] as? String)?.let { p -> putString(EdgeDetectionHandler.SAVE_TO, p) }
+                }
 
+            }
             // now it's safe to create the presenter (it will create Mat etc.)
-            scanPresenter = ScanPresenter(activity, proxy, bundle)
-
-            // wire result listener (you'll need to add setOnResultListener in ScanPresenter)
-            scanPresenter?.setOnResultListener { savedPath ->
-                methodChannel.invokeMethod("onImageCaptured", savedPath)
+            scanPresenter = ScanPresenter(activity, proxy, bundle).apply {
+                setOnCaptureResultListener { res ->
+                    // Send a single JSON object to Flutter
+                    val payload = mapOf(
+                        "imagePath" to res.imagePath,
+                        "width" to res.width,
+                        "height" to res.height,
+                        "corners" to res.corners.map { mapOf("x" to it.x, "y" to it.y) },
+                        "cornersNormalized" to res.cornersNormalized.map { mapOf("x" to it.x, "y" to it.y) }
+                    )
+                    methodChannel.invokeMethod("onCaptureResult", payload)
+                }
             }
 
+            methodChannel.setMethodCallHandler(this)
             // start preview after creation
             scanPresenter?.start()
         }
@@ -110,20 +122,20 @@ class CameraPlatformView(
 
     override fun dispose() {
         scanPresenter?.stop()
+        scanPresenter?.release()
         methodChannel.setMethodCallHandler(null)
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
         when (call.method) {
             "capture" -> {
+                // If capture is called, then it means a capture button was clicked
+                scanPresenter?.manualCapture()
                 // call presenter's capture method. We'll implement a callback to return path (see Step 3).
-                scanPresenter?.shut() // or scanPresenter?.capture()
+//                scanPresenter?.shut() // or scanPresenter?.capture()
                 // If the presenter/crop logic returns asynchronously with a path, you'll need to pass a callback
                 // For now, return success boolean and later wire the callback to return the path.
-                scanPresenter?.setOnResultListener {
-                    path -> methodChannel.invokeMethod("onImageCaptured", path)
-                }
-                result.success(true)
+                result.success(null)
             }
             "toggleFlash" -> {
                 scanPresenter?.toggleFlash()
@@ -137,8 +149,22 @@ class CameraPlatformView(
                 scanPresenter?.start()
                 result.success(null)
             }
-
-
+            "setAutoCaptureEnabled" -> {
+                val enabled = call.argument<Boolean>("enabled") ?: false
+                scanPresenter?.setAutoCaptureEnabled(enabled)
+                result.success(null)
+            }
+            "setAutoCaptureStability" -> {
+                val minStableFrames = call.argument<Int>("minStableFrames") ?: 6
+                val maxCornerMove = call.argument<Double>("maxCornerMove") ?: 12.0
+                val minQuadArea = call.argument<Double>("minQuadArea") ?: 0.1
+                scanPresenter?.setAutoCaptureStability(
+                    minStableFrames,
+                    maxCornerMove.toFloat(),
+                    minQuadArea.toFloat()
+                )
+                result.success(null)
+            }
             else -> result.notImplemented()
         }
     }

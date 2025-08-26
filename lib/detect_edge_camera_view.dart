@@ -1,20 +1,25 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'detect_edge_controller.dart';
+import 'models/document_capture_result.dart';
 
-typedef OnImageCaptured = void Function(String path);
+typedef OnCaptureResult = void Function(DocumentCaptureResult result);
 
 class DetectEdgeCameraViewer extends StatefulWidget {
   const DetectEdgeCameraViewer({
     required this.controller,
     Key? key,
     this.canUseGallery = true,
-    this.onImageCaptured,
+    this.enableAutoCapture = true,
+    this.onCaptureResult,
+    this.saveTo,
   }) : super(key: key);
 
   final bool canUseGallery;
-  final OnImageCaptured? onImageCaptured;
+  final bool enableAutoCapture;
+  final OnCaptureResult? onCaptureResult;
   final DetectEdgeController controller;
+  final String? saveTo; // optional native save path
 
   @override
   State<DetectEdgeCameraViewer> createState() => _DetectEdgeCameraViewerState();
@@ -27,6 +32,7 @@ class _DetectEdgeCameraViewerState extends State<DetectEdgeCameraViewer> {
       'can_use_gallery': widget.canUseGallery,
       'scan_title': 'Scanning',
       'crop_title': 'Crop',
+      if (widget.saveTo != null) 'save_to': widget.saveTo,
     };
 
     return AndroidView(
@@ -36,13 +42,22 @@ class _DetectEdgeCameraViewerState extends State<DetectEdgeCameraViewer> {
       onPlatformViewCreated: (id) {
         widget.controller.bindToView(id);
         widget.controller.start();
+
+        widget.controller.setAutoCaptureEnabled(widget.enableAutoCapture);
+        widget.controller.setAutoCaptureStability();
+
         widget.controller.setMethodCallHandler((call) async {
-          if (call.method == 'onImageCaptured') {
-            final String path = call.arguments as String;
-            widget.onImageCaptured?.call(path);
+          if (call.method == 'onCaptureResult') {
+            final res = DocumentCaptureResult.fromMap(
+              (call.arguments as Map).cast<dynamic, dynamic>(),
+            );
+
+            widget.onCaptureResult?.call(res);
+            widget.controller.completePendingCapture(res);
           }
         });
-        setState((){});
+        // Configure auto-capture after channel is ready
+        setState(() {});
       },
     );
   }

@@ -34,12 +34,12 @@ class EdgeDetectionPlugin : FlutterPlugin, ActivityAware {
         val channel = MethodChannel(messenger, "edge_detection")
         channel.setMethodCallHandler(handler)
 
-        binding
-            .platformViewRegistry
-            .registerViewFactory(
-                "edge_detection/crop_view",
-                CropPlatformViewFactory(binding.binaryMessenger)
-            )
+//        binding
+//            .platformViewRegistry
+//            .registerViewFactory(
+//                "edge_detection/crop_view",
+//                CropPlatformViewFactory(binding.binaryMessenger)
+//            )
 
     }
 
@@ -50,7 +50,6 @@ class EdgeDetectionPlugin : FlutterPlugin, ActivityAware {
     override fun onAttachedToActivity(activityPluginBinding: ActivityPluginBinding) {
         this.activity = activityPluginBinding.activity
         handler?.setActivityPluginBinding(activityPluginBinding)
-
         flutterBinding?.platformViewRegistry?.registerViewFactory(
             "edge_detection/camera_view",
             CameraPlatformViewFactory(messenger, activity!!)

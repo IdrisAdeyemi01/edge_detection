@@ -43,6 +43,12 @@ import java.util.concurrent.Executors
 import kotlin.math.max
 import kotlin.math.min
 import android.util.Size as SizeB
+import android.graphics.PointF
+import java.io.FileOutputStream
+import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.hypot
+
 
 class ScanPresenter constructor(
     private val context: Context,
@@ -60,6 +66,20 @@ class ScanPresenter constructor(
     private var flashEnabled: Boolean = false
     private var resultListener: ((String) -> Unit)? = null
 
+    // Auto-capture controls
+    private val autoEnabled = AtomicBoolean(true)
+    private var minStableFrames = 5
+    private var maxCornerMovementPx = 20f   // if corners move less than this between frames
+    private var minQuadAreaRatio = 0.10f    // polygon must cover >= 10% of preview
+
+    // Auto-capture state
+    private var lastCorners: Corners? = null
+    private var stableCounter = 0
+    private var lastAutoCaptureAt = 0L
+    private var isCapturing = AtomicBoolean(false)
+
+    private val customSaveTo: String? = initialBundle.getString("save_to")
+
     private var mLastClickTime = 0L
     private var shutted: Boolean = true
 
@@ -69,6 +89,19 @@ class ScanPresenter constructor(
         proxySchedule = Schedulers.from(executor)
     }
 
+    data class CaptureResult(
+        val imagePath: String,
+        val width: Int,
+        val height: Int,
+        val corners: List<PointF>,          // absolute pixel coords in saved image space
+        val cornersNormalized: List<PointF> // 0..1 normalized, handy for Flutter overlay
+    )
+
+    private var captureResultListener: ((CaptureResult) -> Unit)? = null
+    fun setOnCaptureResultListener(listener: (CaptureResult) -> Unit) {
+        captureResultListener = listener
+    }
+
     fun setOnResultListener(listener: (String) -> Unit) {
         resultListener = listener
     }
@@ -76,6 +109,17 @@ class ScanPresenter constructor(
     // after the code that finishes the crop & writes the file (where currently the CropActivity would finish):
     fun notifySaved(path: String) {
         resultListener?.invoke(path)
+    }
+
+    fun setAutoCaptureEnabled(enabled: Boolean) {
+        autoEnabled.set(enabled)
+        stableCounter = 0
+    }
+
+    fun setAutoCaptureStability(minFrames: Int, maxCornerMove: Float, minAreaRatio: Float) {
+        minStableFrames = minFrames
+        maxCornerMovementPx = maxCornerMove
+        minQuadAreaRatio = minAreaRatio
     }
 
     private fun isOpenRecently(): Boolean {
@@ -109,9 +153,10 @@ class ScanPresenter constructor(
 
         mCamera?.autoFocus { b, _ ->
             Log.i(TAG, "focus result: $b")
-            mCamera?.enableShutterSound(false)
+            mCamera?.enableShutterSound(true)
             mCamera?.takePicture(null, null, this)
             Log.i(TAG, "Picture taken")
+            isCapturing.set(false)
         }
 
     }
@@ -142,6 +187,12 @@ class ScanPresenter constructor(
         }
         mCamera?.setPreviewCallback(this)
         mCamera?.startPreview()
+    }
+
+    fun manualCapture() {
+        if (isCapturing.get()) return
+        shut() // reuse existing takePicture flow; in onPictureTaken we’ll emit result instead of navigating
+        Log.i(TAG, "Image Shutttt !!!!!!!!!")
     }
 
     private val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
@@ -257,16 +308,80 @@ class ScanPresenter constructor(
     }
 
     fun detectEdge(pic: Mat) {
-        Log.i("height", pic.size().height.toString())
-        Log.i("width", pic.size().width.toString())
+        // 1) Resize to our working size (what the pipeline already used)
         val resizedMat = matrixResizer(pic)
-        SourceManager.corners = processPicture(resizedMat)
-        Imgproc.cvtColor(resizedMat, resizedMat, Imgproc.COLOR_RGB2BGRA)
-        SourceManager.pic = resizedMat
-        val cropIntent = Intent(context, CropActivity::class.java)
-        cropIntent.putExtra(EdgeDetectionHandler.INITIAL_BUNDLE, this.initialBundle)
-        (context as Activity).startActivityForResult(cropIntent, REQUEST_CODE)
+
+        // 2) Detect corners on the SAME mat we will save
+        val detected = processPicture(resizedMat) // Corners? with .corners = 4 points
+
+        // 3) Save the resizedMat as JPEG (this will be the base for Flutter’s crop screen)
+        //    Ensure we write a 3-channel or ARGB_8888 bitmap cleanly.
+        val outFile = run {
+            val explicitPath = initialBundle.getString(EdgeDetectionHandler.SAVE_TO)
+            if (!explicitPath.isNullOrBlank()) File(explicitPath)
+            else File((context as Activity).cacheDir, "scan_${System.currentTimeMillis()}.jpg")
+        }
+
+        // Convert to Bitmap and write JPEG (reliable for BGRA/RGBA mats)
+        val saveBmp = android.graphics.Bitmap.createBitmap(
+            resizedMat.width(), resizedMat.height(), android.graphics.Bitmap.Config.ARGB_8888
+        )
+        // Many camera previews are in BGR/RGBA; your code earlier used COLOR_RGB2BGRA.
+        // For safety, convert to BGRA if needed; then matToBitmap handles it well.
+        var saveMat = Mat()
+        when (resizedMat.channels()) {
+            1 -> Imgproc.cvtColor(resizedMat, saveMat, Imgproc.COLOR_GRAY2BGRA)
+            3 -> Imgproc.cvtColor(resizedMat, saveMat, Imgproc.COLOR_BGR2BGRA)
+            else -> saveMat = resizedMat
+        }
+        Utils.matToBitmap(saveMat, saveBmp, true)
+
+        FileOutputStream(outFile).use { fos ->
+            saveBmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, fos)
+            fos.flush()
+        }
+//        saveBmp.recycle()
+        if (saveMat !== resizedMat) saveMat.release()
+        resizedMat.release()
+        pic.release()
+
+        // 4) Package corners (in the same pixel space as the saved image)
+        val width = saveBmp.width
+        val height = saveBmp.height
+
+        val pxCorners: List<PointF> = detected?.corners?.map { p ->
+            // org.opencv.core.Point -> android.graphics.PointF
+            PointF(p?.x?.toFloat() ?: 0f, p?.y!!.toFloat() ?: 0f)
+        } ?: emptyList()
+
+        val normalized: List<PointF> = pxCorners.map { pf ->
+            PointF(pf.x / width.toFloat(), pf.y / height.toFloat())
+        }
+
+        // 5) Notify listener back to the PlatformView
+        captureResultListener?.invoke(
+            CaptureResult(
+                imagePath = outFile.absolutePath,
+                width = width,
+                height = height,
+                corners = pxCorners,
+                cornersNormalized = normalized
+            )
+        )
     }
+
+
+//    fun detectEdge(pic: Mat) {
+//        Log.i("height", pic.size().height.toString())
+//        Log.i("width", pic.size().width.toString())
+//        val resizedMat = matrixResizer(pic)
+//        SourceManager.corners = processPicture(resizedMat)
+//        Imgproc.cvtColor(resizedMat, resizedMat, Imgproc.COLOR_RGB2BGRA)
+//        SourceManager.pic = resizedMat
+//        val cropIntent = Intent(context, CropActivity::class.java)
+//        cropIntent.putExtra(EdgeDetectionHandler.INITIAL_BUNDLE, this.initialBundle)
+//        (context as Activity).startActivityForResult(cropIntent, REQUEST_CODE)
+//    }
 
     override fun surfaceCreated(p0: SurfaceHolder) {
         initCamera()
@@ -289,6 +404,7 @@ class ScanPresenter constructor(
         Log.i(TAG, "on picture taken")
         Observable.just(p0)
             .subscribeOn(proxySchedule)
+            .observeOn(AndroidSchedulers.mainThread())
             .subscribe {
                 val pictureSize = p1?.parameters?.pictureSize
                 Log.i(TAG, "picture size: " + pictureSize.toString())
@@ -303,6 +419,10 @@ class ScanPresenter constructor(
                 Core.rotate(pic, pic, Core.ROTATE_90_CLOCKWISE)
                 mat.release()
                 detectEdge(pic)
+
+//                processPicture(pic)
+//                emitCaptureResult(pic, corners)
+
                 shutted = true
                 busy = false
             }
@@ -339,10 +459,11 @@ class ScanPresenter constructor(
                         e.printStackTrace()
                     }
 
+                    val corner = processPicture(img)
+                    Log.e(TAG, "PREVIEWING FRAAAAAMMMMMEEEEEE")
                     Observable.create<Corners> {
-                        val corner = processPicture(img)
                         busy = false
-                        if (null != corner && corner.corners.size == 4) {
+                        if ( corner != null && corner.corners.size == 4) {
                             it.onNext(corner)
                         } else {
                             it.onError(Throwable("paper not detected"))
@@ -354,9 +475,44 @@ class ScanPresenter constructor(
                         }, {
                             iView.getPaperRect().onCornersNotDetected()
                         })
-                }, { throwable -> Log.e(TAG, throwable.message!!) })
+
+
+                    // -------- Auto-capture logic --------
+                    if (autoEnabled.get() && corner != null && corner.corners.size == 4 && !isCapturing.get()) {
+                        Log.e(TAG, "ABOUT TO CHECK AUTOCAP")
+                        Log.e(TAG, "STABLE COUNT =======> " + stableCounter.toString())
+                        val okArea = quadAreaRatio(corner, img.width().toFloat(), img.height().toFloat()) >= minQuadAreaRatio
+                        val stable = isStable(lastCorners, corner, maxCornerMovementPx)
+                        if (okArea && stable) stableCounter++ else stableCounter = 0
+
+                        if (stableCounter >= minStableFrames ) {
+                            lastAutoCaptureAt = System.currentTimeMillis()
+                            // save current preview frame (or trigger takePicture for full-res)
+                            isCapturing.set(true)
+
+                            // Option A: trigger full-res picture
+                            mCamera?.autoFocus { _, _ ->
+                                Log.e(TAG, "WANTING TO CAPPTURREE ----->>>")
+
+                                shut()
+//                                mCamera?.takePicture(null, null, this)
+                                // onPictureTaken will emit & release isCapturing
+                                isCapturing.set(false)
+                            }
+//                            shut()
+//                            isCapturing.set(false)
+                        }
+                    }
+
+                    lastCorners = corner
+
+                    busy = false
+                }, { throwable -> Log.e(TAG, throwable.message?: "preview error")
+                    busy = false
+                })
         } catch (e: Exception) {
-            print(e.message)
+            Log.e(TAG, "onPreviewFrame error: ${e.message}")
+            busy = false
         }
 
     }
@@ -416,4 +572,76 @@ class ScanPresenter constructor(
         // Then, get the largest output size that is smaller or equal than our max size
         return validSizes.first { it.long <= maxSize.long && it.short <= maxSize.short }.size
     }
+
+    private fun isStable(prev: Corners?, cur: Corners, maxMove: Float): Boolean {
+        if (prev == null) return false
+        // order assumed TL, TR, BR, BL in your Corners
+        var total = 0f
+        for (i in 0 until 4) {
+            val dx = (cur!!.corners[i]!!.x - prev!!.corners[i]!!.x).toFloat()
+            val dy = (cur!!.corners[i]!!.y - prev!!.corners[i]!!.y).toFloat()
+            total += hypot(dx.toDouble(), dy.toDouble()).toFloat()
+        }
+        val avg = total / 4f
+        Log.e(TAG, "STABILITY AVERAGE ======" + avg.toString())
+        val stability = avg <= maxMove
+        Log.e(TAG, "STABILITY Result ======" + stability.toString())
+        return true
+    }
+
+    private fun quadAreaRatio(c: Corners, w: Float, h: Float): Float {
+        if(c == null)return 0f
+        // polygon area / (w*h). Quick shoelace area:
+        val pts = c.corners
+        val xs = pts!!.map { it!!.x.toFloat() }
+        val ys = pts!!.map { it!!.y.toFloat() }
+        val area = 0.5f * kotlin.math.abs(
+            xs[0]*ys[1] + xs[1]*ys[2] + xs[2]*ys[3] + xs[3]*ys[0]
+                    - ys[0]*xs[1] - ys[1]*xs[2] - ys[2]*xs[3] - ys[3]*xs[0]
+        )
+
+        val value = area / (w * h)
+        Log.e(TAG, "QUAD AREA RATIO ======" + value.toString())
+        return value
+    }
+
+//    private fun emitCaptureResult(mat: Mat, cornersPreviewSpace: Corners?)
+//    {
+//        try {
+//            // 1) Save the full-res image (JPEG)
+//            val outFile = chooseOutFile()
+//            Imgcodecs.imwrite(outFile.absolutePath, mat)
+//
+//            // 2) Compute corners in full-res space.
+//            //    If cornersPreviewSpace is from full-res (onPictureTaken), great.
+//            //    If from preview, map them up (optional). For simplicity, when we emit
+//            //    from onPictureTaken() we pass corners computed at full-res.
+//            val corners = cornersPreviewSpace ?: processPicture(mat)
+//
+//            val list = (corners?.corners ?: emptyList()).map { p ->
+//                PointF(p.x.toFloat(), p.y.toFloat())
+//            }
+//
+//            onCaptureResult?.invoke(
+//                CaptureResult(
+//                    imagePath = outFile.absolutePath,
+//                    corners = list
+//                )
+//            )
+//        } catch (e: Exception) {
+//            Log.e(TAG, "emitCaptureResult failed: ${e.message}")
+//        }
+//    }
+
+    private fun chooseOutFile(): File {
+        customSaveTo?.takeIf { it.isNotBlank() }?.let { return File(it) }
+        val dir = context.getExternalFilesDir("scans") ?: context.filesDir
+        if (!dir.exists()) dir.mkdirs()
+        return File(dir, "scan_${System.currentTimeMillis()}.jpg")
+    }
+
+    fun release() {
+        // clean up if needed
+    }
+
 }

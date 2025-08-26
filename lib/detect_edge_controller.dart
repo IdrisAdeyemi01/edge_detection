@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'package:flutter/services.dart';
+import 'models/document_capture_result.dart';
 
 class DetectEdgeController {
   DetectEdgeController();
 
   MethodChannel? _channel;
   int? _id;
+  Completer<DocumentCaptureResult>? _pending;
 
   /// Bind the controller to the native view's ID
   void bindToView(int id) {
@@ -30,17 +33,37 @@ class DetectEdgeController {
     }
   }
 
-  /// Capture an image and return its path
-  Future<bool> capture() async {
+  Future<void> setAutoCaptureEnabled(bool enableAutoCapture) async {
     if (_channel != null) {
-      final res = await _channel!.invokeMethod('capture');
-      return res;
+      await _channel!.invokeMethod(
+          'setAutoCaptureEnabled', {'enabled': enableAutoCapture});
     }
-    return false;
+  }
+
+  Future<void> setAutoCaptureStability() async {
+    if (_channel != null) {
+      _channel!.invokeMethod('setAutoCaptureStability', {
+        'minStableFrames': 5,
+        'maxCornerMove': 20.0,
+        'minQuadArea': 0.10,
+      });
+    }
+  }
+
+  Future<DocumentCaptureResult> capture() async {
+    _pending = Completer<DocumentCaptureResult>();
+    await _channel!.invokeMethod('capture');
+    return _pending!.future;
   }
 
   /// Listen for native method calls (events)
-  void setMethodCallHandler(Future<dynamic> Function(MethodCall call)? handler) {
+  void setMethodCallHandler(
+      Future<dynamic> Function(MethodCall call)? handler) {
     _channel?.setMethodCallHandler(handler);
+  }
+
+  void completePendingCapture(DocumentCaptureResult r) {
+    _pending?.complete(r);
+    _pending = null;
   }
 }

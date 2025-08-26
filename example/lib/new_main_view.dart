@@ -42,7 +42,7 @@ class _MyAppState extends State<MyApp> {
             DetectEdgeCameraViewer(
               controller: controller,
               canUseGallery: false,
-              onImageCaptured: (path) {
+              onCaptureResult: (path) {
                 print('image saved to $path');
               },
             ),

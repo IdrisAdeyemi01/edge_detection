@@ -5,25 +5,19 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="f08b3923-f33b-4d39-b5f6-cea7d389432e" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/android/src/main/kotlin/com/sample/edgedetection/view/CropPlatformView.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/android/src/main/kotlin/com/sample/edgedetection/view/CropPlatformViewFactory.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/cropping_view.dart" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/edge_detection_view.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/android/src/main/kotlin/com/sample/edgedetection/model/CaptureResult.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/flutter_crop_view.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lib/models/document_capture_result.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.vscode/launch.json" beforeDir="false" afterPath="$PROJECT_DIR$/.vscode/launch.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/android/src/main/kotlin/com/sample/edgedetection/EdgeDetectionPlugin.kt" beforeDir="false" afterPath="$PROJECT_DIR$/android/src/main/kotlin/com/sample/edgedetection/EdgeDetectionPlugin.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/android/src/main/kotlin/com/sample/edgedetection/crop/CropActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/android/src/main/kotlin/com/sample/edgedetection/crop/CropActivity.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/android/src/main/kotlin/com/sample/edgedetection/crop/CropPresenter.kt" beforeDir="false" afterPath="$PROJECT_DIR$/android/src/main/kotlin/com/sample/edgedetection/crop/CropPresenter.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/android/src/main/kotlin/com/sample/edgedetection/scan/ScanActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/android/src/main/kotlin/com/sample/edgedetection/scan/ScanActivity.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/android/src/main/kotlin/com/sample/edgedetection/scan/ScanPresenter.kt" beforeDir="false" afterPath="$PROJECT_DIR$/android/src/main/kotlin/com/sample/edgedetection/scan/ScanPresenter.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/android/src/main/kotlin/com/sample/edgedetection/view/CameraPlatformView.kt" beforeDir="false" afterPath="$PROJECT_DIR$/android/src/main/kotlin/com/sample/edgedetection/view/CameraPlatformView.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/android/src/main/kotlin/com/sample/edgedetection/view/CameraPlatformViewFactory.kt" beforeDir="false" afterPath="$PROJECT_DIR$/android/src/main/kotlin/com/sample/edgedetection/view/CameraPlatformViewFactory.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/example/android/app/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/example/android/app/build.gradle" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/example/lib/new_main_view.dart" beforeDir="false" afterPath="$PROJECT_DIR$/example/lib/new_main_view.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ios/Classes/SwiftEdgeDetectionPlugin.swift" beforeDir="false" afterPath="$PROJECT_DIR$/ios/Classes/SwiftEdgeDetectionPlugin.swift" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/example/pubspec.lock" beforeDir="false" afterPath="$PROJECT_DIR$/example/pubspec.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/detect_edge_camera_view.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/detect_edge_camera_view.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/detect_edge_controller.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/detect_edge_controller.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/edge_detection.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/edge_detection.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pubspec.lock" beforeDir="false" afterPath="$PROJECT_DIR$/pubspec.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pubspec.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/pubspec.yaml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
